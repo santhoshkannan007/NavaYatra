@@ -1,0 +1,9 @@
+Superuser
+
+username : ksrtcadmin
+email : ksrtcadmin@gmail.com
+pass : ksrtcadmin
+
+test username
+santhosh
+Santhosh123

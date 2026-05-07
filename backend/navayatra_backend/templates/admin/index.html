@@ -1,0 +1,425 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static admin_dashboard_tags %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'transport/admin_dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+  {% get_dashboard_stats as stats %}
+  {% get_booking_status_data as booking_status %}
+  {% get_special_tour_status_data as special_tour_status %}
+  {% get_last_7_days_booking_data as bookings_trend %}
+  {% get_top_routes_booking_data as top_routes %}
+  {% get_user_role_distribution_data as role_data %}
+  {% get_report_bus_options as report_buses %}
+
+  {{ booking_status|json_script:"booking-status-json" }}
+  {{ special_tour_status|json_script:"special-tour-status-json" }}
+  {{ bookings_trend|json_script:"bookings-trend-json" }}
+  {{ top_routes|json_script:"top-routes-json" }}
+  {{ role_data|json_script:"role-data-json" }}
+
+  <div class="dashboard-modern" id="navayatra-dashboard">
+    <section class="dashboard-hero">
+      <h2>NavaYatra Operations Command Center</h2>
+      <p>Live overview of bookings, transport flow, and role-based user activity.</p>
+      <div class="quick-pills">
+        <span>Total Users: {{ stats.total_users }}</span>
+        <span>Ticket Bookings: {{ stats.ticket_bookings }}</span>
+        <span>Special Tours: {{ stats.special_tours }}</span>
+        <span>Total Revenue: Rs. {{ stats.total_revenue|floatformat:2 }}</span>
+      </div>
+    </section>
+
+    <section class="dashboard-stats-grid">
+      <article class="stat-card stat-info">
+        <div class="stat-title">Ticket Bookings</div>
+        <div class="stat-value">{{ stats.ticket_bookings }}</div>
+        <div class="stat-note">All ticket booking requests</div>
+      </article>
+
+      <article class="stat-card stat-success">
+        <div class="stat-title">Ticket Confirmed</div>
+        <div class="stat-value">{{ stats.ticket_confirmed }}</div>
+        <div class="stat-note">Confirmed ticket journeys</div>
+      </article>
+
+      <article class="stat-card stat-danger">
+        <div class="stat-title">Ticket Pending</div>
+        <div class="stat-value">{{ stats.ticket_pending }}</div>
+        <div class="stat-note">Ticket requests awaiting action</div>
+      </article>
+
+      <article class="stat-card stat-info">
+        <div class="stat-title">Special Tour Requests</div>
+        <div class="stat-value">{{ stats.special_tours }}</div>
+        <div class="stat-note">All special tour bookings</div>
+      </article>
+
+      <article class="stat-card stat-success">
+        <div class="stat-title">Special Tours Approved</div>
+        <div class="stat-value">{{ stats.special_approved }}</div>
+        <div class="stat-note">Approved by station/admin</div>
+      </article>
+
+      <article class="stat-card stat-danger">
+        <div class="stat-title">Special Tours Pending</div>
+        <div class="stat-value">{{ stats.special_pending }}</div>
+        <div class="stat-note">Special tour requests in review</div>
+      </article>
+
+      <article class="stat-card stat-accent">
+        <div class="stat-title">Ticket Revenue</div>
+        <div class="stat-value">Rs. {{ stats.ticket_revenue|floatformat:2 }}</div>
+        <div class="stat-note">Calculated from confirmed ticket fares</div>
+      </article>
+
+      <article class="stat-card stat-accent">
+        <div class="stat-title">Special Tour Revenue (Estimated)</div>
+        <div class="stat-value">Rs. {{ stats.special_estimated_revenue|floatformat:2 }}</div>
+        <div class="stat-note">Total quoted across special tours</div>
+      </article>
+
+      <article class="stat-card stat-success">
+        <div class="stat-title">Special Tour Revenue (Collected)</div>
+        <div class="stat-value">Rs. {{ stats.special_collected_revenue|floatformat:2 }}</div>
+        <div class="stat-note">Only tours marked paid</div>
+      </article>
+
+      <article class="stat-card stat-primary">
+        <div class="stat-title">Total Revenue</div>
+        <div class="stat-value">Rs. {{ stats.total_revenue|floatformat:2 }}</div>
+        <div class="stat-note">Ticket revenue + paid special tours</div>
+      </article>
+    </section>
+
+    <section class="dashboard-charts-grid">
+      <article class="chart-card">
+        <h3>Ticket Booking Status Split</h3>
+        <p>How ticket bookings are distributed by status.</p>
+        <div class="chart-wrap">
+          <canvas id="bookingStatusChart"></canvas>
+        </div>
+      </article>
+
+      <article class="chart-card">
+        <h3>Special Tour Status Split</h3>
+        <p>Approval flow of special tour requests.</p>
+        <div class="chart-wrap">
+          <canvas id="specialTourStatusChart"></canvas>
+        </div>
+      </article>
+
+      <article class="chart-card">
+        <h3>Bookings in Last 7 Days</h3>
+        <p>Daily booking velocity for the recent week.</p>
+        <div class="chart-wrap">
+          <canvas id="bookingsTrendChart"></canvas>
+        </div>
+      </article>
+
+      <article class="chart-card">
+        <h3>Top Routes by Bookings</h3>
+        <p>Route demand leaderboard from your latest bookings.</p>
+        <div class="chart-wrap">
+          <canvas id="topRoutesChart"></canvas>
+        </div>
+      </article>
+
+      <article class="chart-card">
+        <h3>User Roles Distribution</h3>
+        <p>Balance between admins, station masters, and end users.</p>
+        <div class="chart-wrap">
+          <canvas id="rolesChart"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <section class="dashboard-report-card" id="report-studio">
+      <aside class="report-side">
+        <p class="report-kicker">NavaYatra Intelligence</p>
+        <h3>Report Studio</h3>
+        <p>Generate board-ready exports with dataset, timeline, and bus-level controls.</p>
+        <div class="report-badges">
+          <span>Bus-wise</span>
+          <span>Date-wise</span>
+          <span>PDF + Excel</span>
+        </div>
+        <ul class="report-feature-list">
+          <li>Preset templates for weekly and monthly reporting</li>
+          <li>Custom date range support for audit needs</li>
+          <li>One-click professional exports for sharing</li>
+        </ul>
+      </aside>
+
+      <div class="report-main">
+        <div class="report-preset-bar">
+          <button type="button" class="report-preset" data-period="7days" data-dataset="combined">Weekly Snapshot</button>
+          <button type="button" class="report-preset" data-period="1month" data-dataset="combined">Monthly Summary</button>
+          <button type="button" class="report-preset" data-period="overall" data-dataset="bookings">Ticket Ledger</button>
+          <button type="button" class="report-preset" data-period="overall" data-dataset="special_tours">Tour Ledger</button>
+        </div>
+
+        <form class="report-form" method="get" action="{% url 'admin-report-download' %}">
+          <div class="report-grid">
+            <label>
+              Data Set
+              <select name="dataset" id="report-dataset">
+                <option value="combined">Combined</option>
+                <option value="bookings">Ticket Bookings</option>
+                <option value="special_tours">Special Tours</option>
+              </select>
+            </label>
+
+            <label>
+              Date Range
+              <select name="period" id="report-period">
+                <option value="7days">Last 7 Days</option>
+                <option value="1month">Last 1 Month</option>
+                <option value="overall">Overall</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </label>
+
+            <label>
+              Bus Scope
+              <select name="bus_id" id="report-bus">
+                <option value="">All Buses</option>
+                {% for bus in report_buses %}
+                  <option value="{{ bus.id }}">{{ bus.number }} - {{ bus.route__name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+
+          <div class="report-grid report-custom-dates" id="report-custom-dates">
+            <label>
+              From Date
+              <input type="date" name="start_date" id="report-start-date">
+            </label>
+
+            <label>
+              To Date
+              <input type="date" name="end_date" id="report-end-date">
+            </label>
+          </div>
+
+          <div class="report-actions">
+            <button type="submit" name="format" value="pdf" class="report-btn-primary">Download PDF</button>
+            <button type="submit" name="format" value="xlsx" class="report-btn-secondary">Download Excel</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="dashboard-bottom">
+      <article class="dashboard-panel">
+        <h3>Quick Management</h3>
+        <div class="app-grid">
+          {% for app in app_list %}
+            <div class="app-item">
+              <h4>{{ app.name }}</h4>
+              {% for model in app.models %}
+                <div class="model-line">
+                  <span>{{ model.name }}</span>
+                  <span>
+                    {% if model.admin_url %}
+                      <a href="{{ model.admin_url }}">Open</a>
+                    {% endif %}
+                    {% if model.add_url %}
+                      | <a href="{{ model.add_url }}">Add</a>
+                    {% endif %}
+                  </span>
+                </div>
+              {% endfor %}
+            </div>
+          {% empty %}
+            <p>{% translate "You do not have permission to view or edit anything." %}</p>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="dashboard-panel">
+        <h3>Recent Actions</h3>
+        {% load log %}
+        {% get_admin_log 8 as admin_log for_user user %}
+        {% if admin_log %}
+          <ul class="log-list">
+            {% for entry in admin_log %}
+              <li>
+                {% if entry.is_addition %}
+                  Added
+                {% elif entry.is_change %}
+                  Updated
+                {% elif entry.is_deletion %}
+                  Deleted
+                {% endif %}
+                {% if entry.get_admin_url %}
+                  <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+                {% else %}
+                  {{ entry.object_repr }}
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>{% translate "No recent actions yet." %}</p>
+        {% endif %}
+      </article>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    (function () {
+      const bookingStatusData = JSON.parse(document.getElementById('booking-status-json').textContent);
+      const specialTourStatusData = JSON.parse(document.getElementById('special-tour-status-json').textContent);
+      const bookingsTrendData = JSON.parse(document.getElementById('bookings-trend-json').textContent);
+      const topRoutesData = JSON.parse(document.getElementById('top-routes-json').textContent);
+      const roleData = JSON.parse(document.getElementById('role-data-json').textContent);
+      const reportPeriod = document.getElementById('report-period');
+      const reportDataset = document.getElementById('report-dataset');
+      const reportCustomDates = document.getElementById('report-custom-dates');
+      const reportStartDate = document.getElementById('report-start-date');
+      const reportEndDate = document.getElementById('report-end-date');
+      const reportPresetButtons = document.querySelectorAll('.report-preset');
+
+      const updateDateVisibility = () => {
+        const isCustom = reportPeriod && reportPeriod.value === 'custom';
+        if (!reportCustomDates) {
+          return;
+        }
+
+        reportCustomDates.classList.toggle('active', isCustom);
+
+        if (reportStartDate) {
+          reportStartDate.required = isCustom;
+        }
+        if (reportEndDate) {
+          reportEndDate.required = isCustom;
+        }
+      };
+
+      if (reportPeriod) {
+        reportPeriod.addEventListener('change', updateDateVisibility);
+        updateDateVisibility();
+      }
+
+      reportPresetButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const period = button.dataset.period;
+          const dataset = button.dataset.dataset;
+
+          if (reportPeriod && period) {
+            reportPeriod.value = period;
+          }
+          if (reportDataset && dataset) {
+            reportDataset.value = dataset;
+          }
+
+          reportPresetButtons.forEach((preset) => preset.classList.remove('active'));
+          button.classList.add('active');
+          updateDateVisibility();
+        });
+      });
+
+      const baseOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: { font: { family: 'Space Grotesk' } }
+          }
+        }
+      };
+
+      new Chart(document.getElementById('bookingStatusChart'), {
+        type: 'doughnut',
+        data: {
+          labels: bookingStatusData.labels,
+          datasets: [{
+            data: bookingStatusData.values,
+            backgroundColor: ['#2e7d32', '#ef6c00', '#c62828'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          ...baseOptions,
+          cutout: '68%'
+        }
+      });
+
+      new Chart(document.getElementById('specialTourStatusChart'), {
+        type: 'doughnut',
+        data: {
+          labels: specialTourStatusData.labels,
+          datasets: [{
+            data: specialTourStatusData.values,
+            backgroundColor: ['#2e7d32', '#ef6c00', '#c62828'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          ...baseOptions,
+          cutout: '68%'
+        }
+      });
+
+      new Chart(document.getElementById('bookingsTrendChart'), {
+        type: 'line',
+        data: {
+          labels: bookingsTrendData.labels,
+          datasets: [{
+            label: 'Bookings',
+            data: bookingsTrendData.values,
+            fill: true,
+            tension: 0.35,
+            borderColor: '#c62828',
+            backgroundColor: 'rgba(198, 40, 40, 0.18)',
+            pointBackgroundColor: '#c62828'
+          }]
+        },
+        options: {
+          ...baseOptions,
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      });
+
+      new Chart(document.getElementById('topRoutesChart'), {
+        type: 'bar',
+        data: {
+          labels: topRoutesData.labels,
+          datasets: [{
+            label: 'Bookings',
+            data: topRoutesData.values,
+            backgroundColor: ['#c62828', '#ad1457', '#ef6c00', '#2e7d32', '#6d4c41'],
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          ...baseOptions,
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      });
+
+      new Chart(document.getElementById('rolesChart'), {
+        type: 'polarArea',
+        data: {
+          labels: roleData.labels,
+          datasets: [{
+            data: roleData.values,
+            backgroundColor: ['#c62828', '#ef6c00', '#2e7d32']
+          }]
+        },
+        options: baseOptions
+      });
+    })();
+  </script>
+{% endblock %}
